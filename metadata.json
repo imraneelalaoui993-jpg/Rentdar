@@ -1,0 +1,8 @@
+{
+  "name": "RentDar",
+  "description": "Car rental agency management app for Moroccan agencies. Manage fleet, bookings, contracts with signature pad, payments, maintenance alerts, and bilingual French & Arabic support.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
