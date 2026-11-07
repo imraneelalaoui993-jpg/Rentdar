@@ -1,0 +1,109 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Agency user profile and settings",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "agencyName": { "type": "string" },
+        "city": { "type": "string" },
+        "phone": { "type": "string" },
+        "email": { "type": "string" },
+        "role": { "type": "string", "enum": ["OWNER", "EMPLOYEE"] },
+        "plan": { "type": "string", "enum": ["Starter", "Pro", "Unlimited"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "agencyName", "createdAt", "updatedAt"]
+    },
+    "Car": {
+      "title": "Car",
+      "description": "Vehicle in the rental agency fleet",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "name": { "type": "string" },
+        "plate": { "type": "string" },
+        "year": { "type": "integer" },
+        "dailyPrice": { "type": "number" },
+        "currentMileage": { "type": "integer" },
+        "status": { "type": "string", "enum": ["AVAILABLE", "RENTED", "MAINTENANCE"] },
+        "fuelType": { "type": "string" },
+        "transmission": { "type": "string" },
+        "insuranceExpiry": { "type": "string" },
+        "vignetteExpiry": { "type": "string" },
+        "controleTechniqueExpiry": { "type": "string" },
+        "nextOilChangeMileage": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "name", "plate", "status", "createdAt", "updatedAt"]
+    },
+    "Booking": {
+      "title": "Booking",
+      "description": "Car rental reservation",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "carId": { "type": "string" },
+        "carName": { "type": "string" },
+        "carPlate": { "type": "string" },
+        "clientName": { "type": "string" },
+        "clientPhone": { "type": "string" },
+        "clientCin": { "type": "string" },
+        "pickupDate": { "type": "string" },
+        "pickupTime": { "type": "string" },
+        "returnDate": { "type": "string" },
+        "returnTime": { "type": "string" },
+        "dailyPrice": { "type": "number" },
+        "days": { "type": "integer" },
+        "totalPrice": { "type": "number" },
+        "depositAmount": { "type": "number" },
+        "depositMethod": { "type": "string" },
+        "paymentMethod": { "type": "string" },
+        "paidAmount": { "type": "number" },
+        "status": { "type": "string", "enum": ["RESERVED", "ACTIVE", "RETURNED", "CANCELLED"] },
+        "notes": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "carId", "clientName", "pickupDate", "returnDate", "status", "createdAt", "updatedAt"]
+    },
+    "Payment": {
+      "title": "Payment",
+      "description": "Payment transaction record for a booking",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "bookingId": { "type": "string" },
+        "clientName": { "type": "string" },
+        "amount": { "type": "number" },
+        "date": { "type": "string" },
+        "method": { "type": "string" },
+        "note": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "bookingId", "amount", "createdAt", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profile document"
+    },
+    "/users/{userId}/cars/{carId}": {
+      "schema": "Car",
+      "description": "Vehicles owned by this agency user"
+    },
+    "/users/{userId}/bookings/{bookingId}": {
+      "schema": "Booking",
+      "description": "Bookings created by this agency user"
+    },
+    "/users/{userId}/payments/{paymentId}": {
+      "schema": "Payment",
+      "description": "Payments collected by this agency user"
+    }
+  }
+}

@@ -35,7 +35,9 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import com.google.firebase.auth.FirebaseAuth
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -421,6 +423,63 @@ fun SettingsScreen(
           Text(
             text = StringsHelper.tr(lang, "Enregistrer les modifications", "حفظ التعديلات"),
             fontWeight = FontWeight.Bold
+          )
+        }
+      }
+    }
+
+    // 5. Account & Cloud Database Session
+    val authUser = FirebaseAuth.getInstance().currentUser
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val coroutineScope = androidx.compose.runtime.rememberCoroutineScope()
+    val credentialManager = remember { androidx.credentials.CredentialManager.create(context) }
+
+    Card(
+      shape = RoundedCornerShape(14.dp),
+      colors = CardDefaults.cardColors(containerColor = Color.White),
+      border = BorderStroke(1.dp, CardBorder)
+    ) {
+      Column(modifier = Modifier.padding(16.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+          Icon(Icons.Default.Security, contentDescription = null, tint = EmeraldGreen)
+          Spacer(modifier = Modifier.width(8.dp))
+          Text(
+            text = StringsHelper.tr(lang, "Compte & Synchronisation Firebase", "الحساب ومزامنة فايربيس"),
+            fontWeight = FontWeight.Bold,
+            fontSize = 15.sp
+          )
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+          text = if (authUser != null) {
+            "${authUser.email ?: authUser.displayName ?: authUser.uid} • Connecté"
+          } else {
+            "Non connecté"
+          },
+          fontSize = 12.sp,
+          color = Color(0xFF64748B)
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+
+        OutlinedButton(
+          onClick = {
+            com.example.ui.auth.signOutGoogle(
+              credentialManager = credentialManager,
+              scope = coroutineScope
+            )
+          },
+          border = BorderStroke(1.dp, com.example.ui.theme.StatusRed),
+          shape = RoundedCornerShape(10.dp),
+          modifier = Modifier
+            .fillMaxWidth()
+            .height(44.dp)
+            .testTag("sign_out_button")
+        ) {
+          Text(
+            text = StringsHelper.tr(lang, "Se déconnecter", "تسجيل الخروج"),
+            color = com.example.ui.theme.StatusRed,
+            fontWeight = FontWeight.Bold,
+            fontSize = 13.sp
           )
         }
       }

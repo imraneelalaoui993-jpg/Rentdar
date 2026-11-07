@@ -1,0 +1,129 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Default deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidUser(data) {
+      return data.userId is string && data.userId == request.auth.uid &&
+             data.agencyName is string && data.agencyName.size() >= 2 && data.agencyName.size() <= 100 &&
+             (!('city' in data) || (data.city is string && data.city.size() <= 100)) &&
+             (!('phone' in data) || (data.phone is string && data.phone.size() <= 50)) &&
+             (!('email' in data) || (data.email is string && data.email.size() <= 100)) &&
+             (!('role' in data) || (data.role in ['OWNER', 'EMPLOYEE'])) &&
+             (!('plan' in data) || (data.plan in ['Starter', 'Pro', 'Unlimited'])) &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidCar(data) {
+      return data.userId is string && data.userId == request.auth.uid &&
+             data.name is string && data.name.size() >= 2 && data.name.size() <= 100 &&
+             data.plate is string && data.plate.size() >= 3 && data.plate.size() <= 50 &&
+             data.status in ['AVAILABLE', 'RENTED', 'MAINTENANCE'] &&
+             (!('year' in data) || data.year is int) &&
+             (!('dailyPrice' in data) || data.dailyPrice is number) &&
+             (!('currentMileage' in data) || data.currentMileage is int) &&
+             (!('fuelType' in data) || (data.fuelType is string && data.fuelType.size() <= 50)) &&
+             (!('transmission' in data) || (data.transmission is string && data.transmission.size() <= 50)) &&
+             (!('insuranceExpiry' in data) || (data.insuranceExpiry is string && data.insuranceExpiry.size() <= 30)) &&
+             (!('vignetteExpiry' in data) || (data.vignetteExpiry is string && data.vignetteExpiry.size() <= 30)) &&
+             (!('controleTechniqueExpiry' in data) || (data.controleTechniqueExpiry is string && data.controleTechniqueExpiry.size() <= 30)) &&
+             (!('nextOilChangeMileage' in data) || data.nextOilChangeMileage is int) &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidBooking(data) {
+      return data.userId is string && data.userId == request.auth.uid &&
+             data.carId is string && data.carId.size() > 0 &&
+             data.clientName is string && data.clientName.size() >= 2 && data.clientName.size() <= 100 &&
+             data.pickupDate is string && data.pickupDate.size() <= 30 &&
+             data.returnDate is string && data.returnDate.size() <= 30 &&
+             data.status in ['RESERVED', 'ACTIVE', 'RETURNED', 'CANCELLED'] &&
+             (!('carName' in data) || (data.carName is string && data.carName.size() <= 100)) &&
+             (!('carPlate' in data) || (data.carPlate is string && data.carPlate.size() <= 50)) &&
+             (!('clientPhone' in data) || (data.clientPhone is string && data.clientPhone.size() <= 50)) &&
+             (!('clientCin' in data) || (data.clientCin is string && data.clientCin.size() <= 50)) &&
+             (!('pickupTime' in data) || (data.pickupTime is string && data.pickupTime.size() <= 20)) &&
+             (!('returnTime' in data) || (data.returnTime is string && data.returnTime.size() <= 20)) &&
+             (!('dailyPrice' in data) || data.dailyPrice is number) &&
+             (!('days' in data) || data.days is int) &&
+             (!('totalPrice' in data) || data.totalPrice is number) &&
+             (!('depositAmount' in data) || data.depositAmount is number) &&
+             (!('depositMethod' in data) || (data.depositMethod is string && data.depositMethod.size() <= 100)) &&
+             (!('paymentMethod' in data) || (data.paymentMethod is string && data.paymentMethod.size() <= 50)) &&
+             (!('paidAmount' in data) || data.paidAmount is number) &&
+             (!('notes' in data) || (data.notes is string && data.notes.size() <= 1000)) &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidPayment(data) {
+      return data.userId is string && data.userId == request.auth.uid &&
+             data.bookingId is string && data.bookingId.size() > 0 &&
+             data.amount is number &&
+             (!('clientName' in data) || (data.clientName is string && data.clientName.size() <= 100)) &&
+             (!('date' in data) || (data.date is string && data.date.size() <= 30)) &&
+             (!('method' in data) || (data.method is string && data.method.size() <= 50)) &&
+             (!('note' in data) || (data.note is string && data.note.size() <= 500)) &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    match /users/{userId} {
+      allow get: if isOwner(userId);
+      allow list: if false; // Users cannot list other users
+      allow create: if isOwner(userId) && isValidUser(incoming());
+      allow update: if isOwner(userId) && isValidUser(incoming()) && incoming().createdAt == existing().createdAt;
+      allow delete: if false;
+
+      match /cars/{carId} {
+        allow get: if isOwner(userId) && isValidId(carId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(carId) && isValidCar(incoming());
+        allow update: if isOwner(userId) && isValidId(carId) && isValidCar(incoming()) && incoming().createdAt == existing().createdAt;
+        allow delete: if isOwner(userId) && isValidId(carId);
+      }
+
+      match /bookings/{bookingId} {
+        allow get: if isOwner(userId) && isValidId(bookingId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(bookingId) && isValidBooking(incoming());
+        allow update: if isOwner(userId) && isValidId(bookingId) && isValidBooking(incoming()) && incoming().createdAt == existing().createdAt;
+        allow delete: if isOwner(userId) && isValidId(bookingId);
+      }
+
+      match /payments/{paymentId} {
+        allow get: if isOwner(userId) && isValidId(paymentId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(paymentId) && isValidPayment(incoming());
+        allow update: if isOwner(userId) && isValidId(paymentId) && isValidPayment(incoming()) && incoming().createdAt == existing().createdAt;
+        allow delete: if isOwner(userId) && isValidId(paymentId);
+      }
+    }
+  }
+}

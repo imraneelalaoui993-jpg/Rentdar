@@ -1,6 +1,7 @@
 package com.example.ui
 
-import androidx.lifecycle.ViewModel
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.model.AgencyProfile
 import com.example.data.model.AlertSeverity
@@ -13,7 +14,9 @@ import com.example.data.model.CarStatus
 import com.example.data.model.PaymentMethod
 import com.example.data.model.SignaturePoint
 import com.example.data.model.UserRole
-import com.example.data.repository.RentDarRepository
+import com.example.data.repository.FirestoreRentDarRepository
+import com.google.firebase.Firebase
+import com.google.firebase.auth.auth
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -43,8 +46,9 @@ data class DashboardStats(
 )
 
 class RentDarViewModel(
-  private val repository: RentDarRepository = RentDarRepository()
-) : ViewModel() {
+  application: Application,
+  private val repository: FirestoreRentDarRepository = FirestoreRentDarRepository(application)
+) : AndroidViewModel(application) {
 
   val agency = repository.agency
   val currentRole = repository.currentRole
@@ -74,6 +78,17 @@ class RentDarViewModel(
   private val _successMessage = MutableStateFlow<String?>(null)
   val successMessage: StateFlow<String?> = _successMessage.asStateFlow()
 
+  init {
+    val uid = Firebase.auth.currentUser?.uid
+    if (uid != null) {
+      repository.attachUser(uid, viewModelScope)
+    }
+  }
+
+  fun attachUser(userId: String) {
+    repository.attachUser(userId, viewModelScope)
+  }
+
   // Dynamic Dashboard Stats
   val dashboardStats: StateFlow<DashboardStats> = combine(
     cars,
@@ -96,7 +111,7 @@ class RentDarViewModel(
 
     val availableCount = carList.count { it.status == CarStatus.AVAILABLE }
 
-    // Monthly income = sum of payments in current month (2026-11)
+    // Monthly income = sum of payments
     val monthlyIncome = paymentList.sumOf { it.amount }
 
     // Unpaid balance = sum of (totalPrice - paidAmount) for all active and reserved bookings
@@ -208,27 +223,35 @@ class RentDarViewModel(
   fun getPlanLimit(): Int = repository.getPlanLimit()
 
   fun saveCar(car: Car) {
-    if (car.id.isEmpty() || car.id.startsWith("temp_")) {
-      val res = repository.addCar(car)
-      if (res.isFailure) {
-        _errorMessage.value = res.exceptionOrNull()?.message ?: "Impossible d'ajouter le véhicule"
+    viewModelScope.launch {
+      if (car.id.isEmpty() || car.id.startsWith("temp_")) {
+        val res = repository.addCar(car)
+        if (res.isFailure) {
+          _errorMessage.value = res.exceptionOrNull()?.message ?: "Impossible d'ajouter le véhicule"
+        } else {
+          _successMessage.value = "Véhicule ${car.name} ajouté avec succès !"
+          closeAddCar()
+        }
       } else {
-        _successMessage.value = "Véhicule ${car.name} ajouté avec succès !"
-        closeAddCar()
+        val res = repository.updateCar(car)
+        if (res.isFailure) {
+          _errorMessage.value = res.exceptionOrNull()?.message ?: "Erreur de mise à jour"
+        } else {
+          _successMessage.value = "Véhicule ${car.name} modifié !"
+          closeAddCar()
+        }
       }
-    } else {
-      repository.updateCar(car)
-      _successMessage.value = "Véhicule ${car.name} modifié !"
-      closeAddCar()
     }
   }
 
   fun deleteCar(carId: String) {
-    val res = repository.deleteCar(carId)
-    if (res.isFailure) {
-      _errorMessage.value = res.exceptionOrNull()?.message ?: "Erreur de suppression"
-    } else {
-      _successMessage.value = "Véhicule supprimé."
+    viewModelScope.launch {
+      val res = repository.deleteCar(carId)
+      if (res.isFailure) {
+        _errorMessage.value = res.exceptionOrNull()?.message ?: "Erreur de suppression"
+      } else {
+        _successMessage.value = "Véhicule supprimé."
+      }
     }
   }
 
@@ -237,30 +260,45 @@ class RentDarViewModel(
   }
 
   fun createBooking(booking: Booking): Boolean {
-    val res = repository.createBooking(booking)
-    return if (res.isSuccess) {
-      _successMessage.value = "Réservation créée avec succès !"
-      _showNewBookingSheet.value = false
-      true
-    } else {
-      _errorMessage.value = res.exceptionOrNull()?.message ?: "Erreur de réservation"
-      false
+    var success = false
+    viewModelScope.launch {
+      val res = repository.createBooking(booking)
+      if (res.isSuccess) {
+        _successMessage.value = "Réservation créée avec succès !"
+        _showNewBookingSheet.value = false
+        success = true
+      } else {
+        _errorMessage.value = res.exceptionOrNull()?.message ?: "Erreur de réservation"
+      }
     }
+    return success
   }
 
   fun updateBookingStatus(bookingId: String, newStatus: BookingStatus) {
-    val current = bookings.value.find { it.id == bookingId } ?: return
-    val updated = current.copy(status = newStatus)
-    repository.updateBooking(updated)
-    _selectedBooking.value = updated
-    _successMessage.value = "Statut mis à jour : ${newStatus.name}"
+    viewModelScope.launch {
+      val current = bookings.value.find { it.id == bookingId } ?: return@launch
+      val updated = current.copy(status = newStatus)
+      val res = repository.updateBooking(updated)
+      if (res.isSuccess) {
+        _selectedBooking.value = updated
+        _successMessage.value = "Statut mis à jour : ${newStatus.name}"
+      } else {
+        _errorMessage.value = res.exceptionOrNull()?.message ?: "Erreur de mise à jour"
+      }
+    }
   }
 
   fun recordPayment(bookingId: String, amount: Double, method: PaymentMethod, note: String) {
-    repository.recordPayment(bookingId, amount, method, note)
-    val updated = bookings.value.find { it.id == bookingId }
-    _selectedBooking.value = updated
-    _successMessage.value = "Paiement de $amount MAD enregistré !"
+    viewModelScope.launch {
+      val res = repository.recordPayment(bookingId, amount, method, note)
+      if (res.isSuccess) {
+        val updated = bookings.value.find { it.id == bookingId }
+        _selectedBooking.value = updated
+        _successMessage.value = "Paiement de $amount MAD enregistré !"
+      } else {
+        _errorMessage.value = res.exceptionOrNull()?.message ?: "Erreur d'enregistrement"
+      }
+    }
   }
 
   fun saveSignature(bookingId: String, points: List<SignaturePoint>) {
@@ -271,12 +309,14 @@ class RentDarViewModel(
   }
 
   fun deleteBooking(bookingId: String) {
-    val res = repository.deleteBooking(bookingId)
-    if (res.isFailure) {
-      _errorMessage.value = res.exceptionOrNull()?.message ?: "Erreur de suppression"
-    } else {
-      _selectedBooking.value = null
-      _successMessage.value = "Réservation supprimée."
+    viewModelScope.launch {
+      val res = repository.deleteBooking(bookingId)
+      if (res.isFailure) {
+        _errorMessage.value = res.exceptionOrNull()?.message ?: "Erreur de suppression"
+      } else {
+        _selectedBooking.value = null
+        _successMessage.value = "Réservation supprimée."
+      }
     }
   }
 }
